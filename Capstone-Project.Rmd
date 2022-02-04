@@ -7,13 +7,15 @@ output: pdf_document
 
 
 
-## This project is based on the data Movielens, which aims to make movie recommendatuons to viewers/users based on the movies they have already watched and the rating that they gave to those movies.The features or variables under consideration are the UserID( which is the user identification), the movieId ( which is the movie Identification), the title of the movie and the genre of each movie.The "rating" is the target variable that we will be predicting.First, we analysed the data, and derived the key relationships between the variables and the target variable. This was visualized in diagramatic plots. The strength of the mentioned relationships was also measured using the correlation function. Second, we tried a couple of models, which we have descrbed in the Modelling & Results section of this report. Finally, we tested the optimal model on the validation data to determine the final RMSE.
+## 1.Introduction
+
+This project is based on the data Movielens, which aims to make movie recommendatuons to viewers/users based on the movies they have already watched and the rating that they gave to those movies.The features or variables under consideration are the UserID( which is the user identification), the movieId ( which is the movie Identification), the title of the movie and the genre of each movie.The "rating" is the target variable that we will be predicting.First, we analysed the data, and derived the key relationships between the variables and the target variable. This was visualized in diagramatic plots. The strength of the mentioned relationships was also measured using the correlation function. Second, we tried a couple of models, which we have descrbed in the Modelling & Results section of this report. Finally, we tested the optimal model on the validation data to determine the final RMSE.
 
 
-## Method and Analysis
+## 2.Method, Analysis and Exploration
 
     # Create edx set, validation set (final hold-out test set)- (provided by the edx team)
-```{r,echo=FALSE}
+```{r,echo=FALSE,message=FALSE}
 if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
 if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
 if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
@@ -24,7 +26,7 @@ library(data.table)
 ```
 
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,message=FALSE}
 dl <- tempfile()
 download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
 
@@ -67,7 +69,7 @@ rm(dl, ratings, movies, test_index, temp, movielens, removed)
 dim(edx)
 dim(validation)
 ```
-   #Data Exploration 
+
    #Split the edx data into train and test data: 
 ```{r,echo=FALSE}
 set.seed(1)
@@ -77,35 +79,35 @@ train<-edx[-index,]
 
 ```
  #Explore the train data set
-```{r,echo=FALSE}
+```{r,echo=FALSE,message=FALSE}
 str(train)
 summary(train)
 ```
- #movieId
+ # explore the variable "movieId"
 ```{r,echo=FALSE}
 mu<-mean(train$rating)
-train%>%group_by(movieId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(desc(mean_rating))%>%slice(1:20)
-train%>%group_by(movieId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(mean_rating)%>%slice(1:20)
+train%>%group_by(movieId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(desc(mean_rating))%>%slice(1:5)
+train%>%group_by(movieId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(mean_rating)%>%slice(1:5)
 library(ggplot2)
 train%>%group_by(movieId)%>%summarize(n=n(),mean_rating=mean(rating))%>%ggplot(aes(mean_rating,n)) + geom_point()
 ```
 The scatter plot above shows that the movies with the highest and lowest  mean rating have been rated very few times.
 Thus, it would be wise to penalize the rating with the lowest number of ratings.This will be referred to as regularization.
 
- #userId
+ #explore the variable "userId"
 ```{r,echo=FALSE}
-train%>%group_by(userId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(desc(mean_rating))%>%slice(1:20)
-train%>%group_by(userId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(mean_rating)%>%slice(1:20)
+train%>%group_by(userId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(desc(mean_rating))%>%slice(1:5)
+train%>%group_by(userId)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(mean_rating)%>%slice(1:5)
 train%>%group_by(userId)%>%summarize(n=n(),mean_rating=mean(rating))%>%ggplot(aes(mean_rating,n)) + geom_point()
 
 ```
  
  From the above scatter graph, the distribution of the mean rating of movies per each user is normal.
  
-  #Genres
+  #explore the variable "genres"
 ```{r,echo=FALSE}
 length(unique(train$genres))
-train%>%mutate(genres=factor(genres))%>%group_by(genres)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(desc(mean_rating))
+train%>%mutate(genres=factor(genres))%>%group_by(genres)%>%summarize(n=n(),mean_rating=mean(rating))%>%arrange(desc(mean_rating))%>%slice(1:5)
 train%>%mutate(genres=factor(genres))%>%group_by(genres)%>%summarize(n=n()/1000,mean_rating=mean(rating))%>%ggplot(aes(mean_rating,n)) + geom_point()
 
 ```
@@ -114,11 +116,11 @@ train%>%mutate(genres=factor(genres))%>%group_by(genres)%>%summarize(n=n()/1000,
   There seems to be a genres bias, as the genre with the highest mean_rating(Animation) has only 7 movies.
   Thus, regularization will be needed to remove the bias.
  
-   #Timestamp
+   #explore the variable "timestamp"
    
   Split the timestamp to date
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,message=FALSE}
 library(lubridate)
 train%>%mutate(date=as_datetime(timestamp))%>%mutate(date=round_date(date,unit="week"))%>%group_by(date)%>%summarize(rating=mean(rating))%>%ggplot(aes(date,rating)) + geom_point() + geom_smooth()
 
@@ -129,9 +131,9 @@ train%>%mutate(date=as_datetime(timestamp))%>%mutate(date=round_date(date,unit="
   # Modelling Approach.
   The variables that have a significant effect on the movie rating are UserId, movieId and genres.
   
-# Modelling and Results
+# 3.Modelling and Results
   
-    # First Model: Just the mean
+    First Model: Just the mean
 
 ```{r,echo=FALSE}
 mu<-mean(train$rating)
@@ -141,7 +143,8 @@ Results
 ```
 
   
-  #Second Model:The movie Effect
+  Second Model:The movie Effect
+  
 ```{r,echo=FALSE}
 movie_effect<-train%>%group_by(movieId)%>%summarize(b_i=mean(rating-mu))
 pred_2<-test%>%left_join(movie_effect,by="movieId")%>%mutate(pred=mu+b_i)%>%.$pred
@@ -150,7 +153,9 @@ Results<-rbind(Results,data.frame(Model="Movie Effect",RMSE=rmse_2))
 Results
 
 ```
- #The Third model: The movie + user Effect  
+ 
+ The Third model: The movie + user Effect  
+ 
 ```{r,echo=FALSE}
 user_effect<-train%>%left_join(movie_effect,by="movieId")%>%group_by(userId)%>%summarize(b_u=mean(rating-mu-b_i))
 pred_3<-test%>%left_join(movie_effect,by="movieId")%>%left_join(user_effect,by="userId")%>%mutate(pred=mu+b_i+b_u)%>%.$pred
@@ -159,7 +164,9 @@ Results<-rbind(Results,data.frame(Model="Movie + User Effect",RMSE=rmse_3))
 Results
 ```
  
-   #The Forth model: The movie + user  + genre Effect  
+   
+   The Forth model: The movie + user  + genre Effect  
+   
 ```{r,echo=FALSE}
 genre_effect<-train%>%left_join(movie_effect,by="movieId")%>%left_join(user_effect,by="userId")%>%group_by(genres)%>%summarize(b_g=mean(rating-mu-b_i-b_u))
 test<-test%>%mutate(genres=factor(genres))
@@ -168,7 +175,9 @@ rmse_4<-RMSE(pred_4,test$rating,na.rm = TRUE)
 Results<-rbind(Results,data.frame(Model="Movie + User + Genre Effect",RMSE=rmse_4))
 Results
 ```
-# The fifth Model: Regularization of the variables
+  
+  The fifth Model: Regularization of the variables
+  
 
 From the above Results, the RMSE keeps decreasing.
 From the Analysis we did, we noticed that there is bias in the movieId, userId and genres, due to the few number of ratings in each class. Thus, the next step will be to regularize the variables so as to remove the bias.
@@ -203,7 +212,7 @@ Results
  The value of lambda that produces the minimum RMSE is `r rmses[which.min(rmses[,2]),1]`
  
  
-#Test the final model on the Validation data
+ Test the final model on the Validation data
  
 ```{r,echo=FALSE}
 optimal_lambda <-rmses[which.min(rmses[,2]),1]
@@ -216,7 +225,8 @@ Final_RMSE
 
 ```
 
-#Conclusion
+# 4.Conclusion
+
  An RMSE of `r Final_RMSE` has been attained on the Validation data.
  The model, based on 3 variables can be improved by increasing the number of variables that have an effect on the predicted rating of a movie recommended.
  This model is only limited to the movies that have an existing rating and those that are in the movie site.
